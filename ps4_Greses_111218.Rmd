@@ -1,0 +1,139 @@
+---
+title: 'Psych 251 PS4: Simulation'
+author: "Greses Perez"
+date: "2018"
+output: 
+  html_document:
+    toc: true
+---
+
+This is problem set #3, in which we want you to integrate your knowledge of data wrangling with some basic simulation skills and some linear modeling.
+
+For ease of reading, please separate your answers from our text by marking our text with the `>` character (indicating quotes). 
+
+```{r}
+library(tidyverse)
+```
+
+Let's start by convincing ourselves that t-tests have the appropriate false positive rate. Run 10,000 t-tests with standard, normally-distributed data from a made up 30-person, single-measurement experiment (the command for sampling from a normal distribution is `rnorm`). What's the mean number of "significant" results?
+
+First do this using a `for` loop.
+
+```{r}
+#normally-distributed data from a made up 30-person
+data =data.frame(
+  a=rnorm(n=30),
+  group=rep(1:2, each=15))
+
+#t-test for the sigle-measurement experiment
+ttest_result=t.test(a~group, data=data)
+p_value=(ttest_result$p.value)
+significant=(p_value <.05)
+
+#10,000 t-tests with standard, normally-distributed data
+significant_vector=c()
+for (i in 1:10000) {
+  data=data.frame(
+    a=rnorm(n=30),
+    group=rep(1:2, each=15))
+
+#t-test for the 10000 experiments
+ttest_result=t.test(a~group, data=data)
+p_value=(ttest_result$p.value)
+significant=(p_value <=.05)
+significant_vector[i]=significant
+}
+
+sum(significant_vector)/10000
+```
+
+
+Next, do this using the `replicate` function:
+
+
+```{r}
+s=replicate(10000,t.test(rnorm(30))$p.value)
+length(s[s <=.05])/10000
+```
+
+
+Ok, that was a bit boring. Let's try something more interesting - let's implement a p-value sniffing simulation, in the style of Simons, Nelson, & Simonsohn (2011).
+
+Consider this scenario: you have done an experiment, again with 30 participants (one observation each, just for simplicity). The question is whether their performance is above chance. You aren't going to check the p-value every trial, but let's say you run 30 - then if the p-value is within the range p < .25 and p > .05, you optionally run 30 more and add those data, then test again. But if the original p value is < .05, you call it a day, and if the original is > .25, you also stop.  
+
+First, write a function that implements this sampling regime.
+
+```{r}
+double.sample_greses <- function(){
+comienzo <- rnorm(n=30)
+    p_comienzo=t.test(comienzo)$p.value
+    if(p_comienzo>0.05 || p_comienzo< 0.25){
+      final=c(rnorm(n=30), comienzo)
+        p_final=t.test(final)$p.value
+        return(p_final)
+    } else {
+      return(p_comienzo)
+    } }
+    #27 lec2
+```
+
+
+Now call this function 10k times and find out what happens. 
+
+```{r}
+new_p <- replicate(10000,double.sample_greses())
+significant_p <- new_p[new_p<= .05]
+x=length(significant_p)/10000
+print(x)
+```
+
+
+```{r}
+false= 1-(.05/x)
+false
+```
+
+
+Is there an inflation of false positives? How bad is it?
+
+> There is an inflation of false positives. Of all the values calculated here, i found a false rate of .0825 or 825 false positives for 10,000 samples, which it is more than the 5% of posible p-values =<0.05. 
+
+Now modify this code so that you can investigate this "double the sample" rule in a bit more depth. Let's see what happens when you double the sample ANY time p > .05 (not just when p < .25), or when you do it only if p < .5 or < .75. How do these choices affect the false positive rate?
+
+HINT: Try to do this by making the function `double.sample` take the upper p value as an argument, so that you can pass this through dplyr.
+
+HINT 2: You may need more samples. Find out by looking at how the results change from run to run.
+
+```{r}
+double.sample_greses1 <- function(){
+comienzo1 <- rnorm(n=30)
+    p_value=t.test(comienzo1)$p.value
+    if(p_value<0.05) {
+        return(p_value)
+    }
+    if(p_value>0.25){
+      final1 <- c(rnorm(n=30), comienzo1)
+      p_value=t.test(final1)$p.value
+    }
+    if(p_value<.5){
+      final2 <- c(rnorm(n=30), comienzo1)
+      p_value=t.test(final2)$p.value
+    }
+    if(p_value<.75){
+      final3 <- c(rnorm(n=30), comienzo1)
+      p_value=t.test(final3)$p.value
+    }
+    if(p_value>.05){
+      final4 <- c(rnorm(n=30), comienzo1)
+      p_value=t.test(final4)$p.value
+    }
+      return(p_value)
+}
+p_value1 <-replicate(10000, double.sample_greses1())
+p_value_sign <-p_value1[p_value1<=.05]
+length(p_value_sign)/10000
+```
+
+What do you conclude on the basis of this simulation? How bad is this kind of data-dependent policy?
+
+> Based on the results, I can conclude that when I double the sample based on p-values, it increases the false positive rate. This is interesting because I have seen scholars doing something similar to evaluate wether or not they should get a bigger sample for an specific experiment. I wonder what other less bias methods are there out there to forecast how likely increasing the sampel will lead into the finidng of true positives. 
