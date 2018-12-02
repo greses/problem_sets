@@ -1,6 +1,6 @@
 ---
 title: 'Psych 251 PS5: Visualization'
-author: "Mike Frank"
+author: "Greses Pérez"
 date: "2018"
 output: 
   html_document:
@@ -32,30 +32,65 @@ This part is a warmup, it should be relatively straightforward `ggplot2` practic
 Load data from Frank, Vul, Saxe (2011, Infancy), a study in which we measured infants' looking to hands in moving scenes. There were infants from 3 months all the way to about two years, and there were two movie conditions (`Faces_Medium`, in which kids played on a white background, and `Faces_Plus`, in which the backgrounds were more complex and the people in the videos were both kids and adults). An eye-tracker measured children's attention to faces. This version of the dataset only gives two conditions and only shows the amount of looking at hands (other variables were measured as well). 
 
 ```{r}
+#select fvs and press command + enter
 fvs <- read_csv("data/FVS2011-hands.csv")
 ```
 
 First, use `ggplot` to plot a histogram of the ages of children in the study. NOTE: this is a repeated measures design, so you can't just take a histogram of every measurement. 
 
+
 ```{r}
+# PLaying with QPLOT TIME: with qplot but it is double counting the measurements because it is not filter by condition.
+hist_plot <-qplot(fvs$age, 
+                  geom = "histogram",
+                  binwidth = .5,
+                  main = "Histogram for Age",
+                  xlab = "Age",
+                  fill=I("gray"),
+                  col=I("black"),
+                  alpha=I(.2),
+                  xlim=c(1,30))
+hist_plot
 ```
 
-Second, make a scatter plot showing the difference in hand looking by age and condition. Add appropriate smoothing lines. Take the time to fix the axis labels and make the plot look nice. 
+```{r}
+# with ggplot but without repeating the measurements for the conditions as requested in the problem set
+fvsCMed <- fvs%>%
+  filter(condition=="Faces_Medium")
+hist_plot2 <-ggplot(data = fvsCMed, aes(fvsCMed$age)) + 
+  geom_histogram(breaks=seq(1,30, by=.5),
+                 col="black",
+                 fill="gray",
+                 alpha = .2) +
+  labs(tittle="Histogram fro Age") +
+  labs(x="Age", y="Frequency") +
+  xlim(c(1,30))
+hist_plot2
+```
+
+
+Second, make a scatter plot showing hand looking as a function of age and condition. Add appropriate smoothing lines. Take the time to fix the axis labels and make the plot look nice. 
 
 ```{r}
+sp <- ggplot(data = fvs, aes(age, hand.look))
+sp + geom_point(aes(colour = condition), size=2) + 
+  geom_smooth(aes(group =condition, colour=condition), method = "lm") +
+  labs(tittle="Scatter plot age vs. hand looking by condition") +
+  labs(x="Age (months)", y="Hand Looking")
 ```
 
 What do you conclude from this pattern of data?
 
-> ANSWER HERE
+> Based on the data from Frank, Vul & Saxe (2011), a study in which we measured infants' looking to hands in moving scenes, there is greater variability in the amount kids who look at hands in the faces plus conditions. These variations are even greater as kids become older than 10 months. In the faces medium condition, results were more consistent and the head looking tends to increase as age increases. 
+
 
 What statistical analyses would you perform here to quantify these differences?
 
-> ANSWER HERE
+> I will run a t-test to compare the means of the two populations of students who were in the faces medium condition and in the faces plus conditions. 
 
 # Part 2
 
-Sklar et al. (2012) claim evidence for unconscious arithmetic processing - they prime participants with arithmetic problems and claim that the authors are faster to repeat the answers. We're going to do a reanalysis of their Experiment 6, which is the primary piece of evidence for that claim. The dataare generously shared by Asael Sklar. (You may recall these data from the `tidyverse` tutorial earlier in the quarter). 
+Sklar et al. (2012) claim evidence for unconscious arithmetic processing - they prime participants with arithmetic problems and claim that the authors are faster to repeat the answers. We're going to do a reanalysis of their Experiment 6, which is the primary piece of evidence for that claim. The data are generously shared by Asael Sklar. (You may recall these data from the `tidyverse` tutorial earlier in the quarter). 
 
 ## Data Prep
 
@@ -65,6 +100,9 @@ First read in two data files and subject info. A and B refer to different trial 
 subinfo <- read_csv("data/sklar_expt6_subinfo_corrected.csv")
 d_a <- read_csv("data/sklar_expt6a_corrected.csv")
 d_b <- read_csv("data/sklar_expt6b_corrected.csv")
+subinfo
+d_a
+d_b
 ```
 
 `gather` these datasets into long ("tidy data") form. If you need to review tidying, [here's the link to R4DS](http://r4ds.had.co.nz/tidy-data.html) (bookmark it!). Remember that you can use `select_helpers` to help in your `gather`ing. 
@@ -85,48 +123,134 @@ The resulting tidy dataset should look like this:
 ```
 
 ```{r}
+#tidy data from d_a
+d_a1 <- d_a %>%
+  gather(`1`,`2`,`3`,`4`,`5`, `6`,`7`, `8`, `9`, `10`, `11`, `12`, `13`, `14`, `15`,`16`,`17`,`18`,`19`,`20`,`21`, key= "subid", value ="rt")
+d_a1
 ```
+
+
+```{r}
+#tidy data from d_b
+d_b1 <- d_b %>%
+  gather(`22`,`23`,`24`,`25`,`26`,`27`,`28`,`29`,`30`,`31`,`32`,`33`,`34`,`35`,`36`,`37`, `38`,`39`,`40`,`41`,`42`, key= "subid", value ="rt")
+d_b1
+```
+
+
+```{r}
+#Combine both of the datas
+ab <-bind_rows(list(d_a1, d_b1))
+ab
+```
+
+
 
 Merge these with subject info. You will need to look into merge and its relatives, `left_` and `right_join`. Call this dataframe `d`, by convention. 
 
 ```{r}
+d <- merge(ab, subinfo, by="subid")
+d
 ```
 
 Clean up the factor structure (just to make life easier). No need to, but if you want, you can make this more `tidyverse`-ish.
 
 ```{r}
+# there is one of the variables that it is a number but it will tell R for the purpose of future data analysis, it should worry that there were two different presentations times, instead of treating like it number. It is doing the same for "operand"
 d$presentation.time <- factor(d$presentation.time)
 levels(d$operand) <- c("addition","subtraction")
 ```
 
 ## Data Analysis Preliminaries
 
-Examine the basic properties of the dataset. First, show a histogram of reaction times.
+Examine the basic properties of the dataset. First, show a histogram of reaction times
 
 ```{r}
+d$rt
+```
+
+
+
+```{r}
+hist_rt <-ggplot(data = d, aes(d$rt)) + 
+  geom_histogram(breaks=seq(1,1100, by=1),
+                 col="black",
+                 fill="gray",
+                 alpha = .2) +
+  labs(tittle="Histogram for Reaction Time") +
+  labs(x="Reaction Time", y="Frequency") +
+  xlim(c(1,1100))
+hist_rt
+```
+
+```{r}
+hist_rtmod <-ggplot(data = d, aes(d$rt)) + 
+  geom_histogram(breaks=seq(1,1100, by=.1),
+                 col="black",
+                 fill="gray",
+                 alpha = .2) +
+  labs(tittle="Histogram for Reaction Time") +
+  labs(x="Reaction Time", y="Frequency") +
+  xlim(c(557.5,562.5))
+hist_rtmod
 ```
 
 Challenge question: what is the sample rate of the input device they are using to gather RTs?
 
-> ANSWER HERE (OPTIONAL)
+```{r}
+sort(unique(d$rt))
+```
+
+> The sample rate of the input device they are using to gather the response time is 1ms, Then, there is a span between the two mesurements of 1ms to the next one of 34 mili seconds from the last one. 
+
 
 Sklar et al. did two manipulation checks. Subjective - asking participants whether they saw the primes - and objective - asking them to report the parity of the primes (even or odd) to find out if they could actually read the primes when they tried. Examine both the unconscious and conscious manipulation checks. What do you see? Are they related to one another?
 
 ```{r}
+# the text above is above manipulation test. Look at what the subject said about one or the other. Vidual. Maybe 
+st <- d%>%
+  filter(subjective.test=="0")
+histst <-ggplot(data = st, aes(st$objective.test))+
+  geom_histogram(breaks=seq(0,1, by=.02),
+                                col="red",
+                                fill="red", 
+                                alpha=.2) + 
+                  labs(tittle="Historgram: Participants say No") +
+                  labs(x="Objective for participants who did not reported seeing the prime", y="Frequency") +
+                  xlim(c(0,1))
+st1 <- d%>%
+  filter(subjective.test=="1")
+histst1 <-ggplot(data = st1, aes(st1$objective.test))+
+  geom_histogram(breaks=seq(0,1, by=.02),
+                                col="blue",
+                                fill="blue", 
+                                alpha=.2)+
+                  labs(tittle="Historgram: Participants say YES")+
+                  labs(x="Objective for participants who reported seeing the prime", y="Frequency")+
+                  xlim(c(0,1))
+histst
+histst1
 ```
 
-> ANSWER HERE
 
-> In Experiments 6, 7, and 9, we used the binomial distribution to determine whether each participant performed better than chance on the objective block and excluded from analyses all those participants who did (21, 30, and 7 participants in Experiments 6, 7, and 9, respectively). Note that, although the number of excluded participants may seem high, they fall within the normal range of long-duration CFS priming, in which suc- cessful suppression is strongly affected by individual differences (38). We additionally excluded participants who reported any subjective awareness of the primes (four, five, and three participants in Experiments 6, 7, and 9, respectively).
+> They are related because participants who reported seeing the prime where more likely or have a higher chance to report the parity of the prime correctly (objective).However, participants who reported not seeing the prime were below chance on the objective test. 
+
+In Experiments 6, 7, and 9, we used the binomial distribution to determine whether each participant performed better than chance on the objective block and excluded from analyses all those participants who did (21, 30, and 7 participants in Experiments 6, 7, and 9, respectively (NOTE TO SELF: This are how many are excluded per experiment)). Note that, although the number of excluded participants may seem high, they fall within the normal range of long-duration CFS priming, in which suc- cessful suppression is strongly affected by individual differences (38). We additionally excluded participants who reported any subjective awareness of the primes (four, five, and three participants in Experiments 6, 7, and 9, respectively).
  
-OK, let's turn back to the measure and implement Sklar et al.'s exclusion criterion. You need to have said you couldn't see (subjective test) and also be not significantly above chance on the objective test (< .6 correct). Call your new data frame `ds`.
+OK, let's turn back to the measure and implement Sklar et al.'s exclusion criterion. You need to have said you couldn't see (subjective test) and also be not significantly above chance on the objective test (< .6 correct). Call your new data frame `ds`. NOTE TO SELF: This is what I need to do to exclude everybody on the previous paragraph. 
 
 ```{r}
+ds <- d%>%
+  filter(subjective.test=="0" & objective.test<0.60)
+length(unique(d$subid)) # number of participants without exclusions
+length(unique(ds$subid)) # number of participants with exclusions 
+ds
 ```
+
 
 ## Replicating Sklar et al.'s analysis
 
-Sklar et al. show a plot of a "facilitation effect" - the amount faster you are for prime-congruent naming compared with prime-incongruent naming. They then show plot this difference score for the subtraction condition and for the two prime times they tested. Try to reproduce this analysis. 
+Sklar et al. show a plot of a "facilitation effect" - the amount faster you are for prime-congruent naming compared with prime-incongruent naming. They then show plot this difference score for the subtraction condition and for the two prime times they tested. Try to reproduce this analysis. NOTE TO SELF: Recreate graph in the paper. 
 
 HINT: first take averages within subjects, then compute your error bars across participants, using the `ci` function (defined above). Sklar et al. use SEM (and do it incorectly, actually), but CI is more useful for "inference by eye" as discussed in class.  
 
@@ -135,14 +259,42 @@ HINT 2: remember that in class, we reviewed the common need to `group_by` and `s
 HINT 3: The final summary dataset should have 4 rows and 5 columns (2 columns for the two conditions and 3 columns for the outcome: reaction time, ci, and n).
 
 ```{r}
+ds.resta <- ds[ds$operand=="S",]
+cd <- ds.resta %>%
+  group_by(subid, congruent) %>%
+  summarise(mean = mean(rt, na.rm = T))
+cdancho <- cd %>%
+  spread(congruent, mean)
+cdancho$congruentd <- cdancho$no - cdancho$yes
+ds.diferencia <- merge(ds.resta, cdancho, by = "subid")
+sub.p <- ds.diferencia %>%
+  group_by(presentation.time) %>%
+  summarise(mean = mean(congruentd), s = sd(congruentd) / sqrt(n()),
+            ci95 = 1.96*s)
+sub.p
 ```
 
 Now plot this summary, giving more or less the bar plot that Sklar et al. gave (though I would keep operation as a variable here. Make sure you get some error bars on there (e.g. `geom_errorbar` or `geom_linerange`). 
 
 ```{r}
+sum.plot <- ggplot(sub.p, aes(x=presentation.time, y=mean)) +
+  geom_bar(position = position_dodge(), stat = "identity", 
+           col="gray",
+           fill="gray") +
+  geom_errorbar(aes(ymin = mean-s, ymax = mean+s),
+                size=2,
+                width=.1,
+                position = position_dodge(.1),
+                col="blue") +
+  ylim(c(0,30)) +
+  xlab("Presentation time") +
+  ylab("Difference in response times") +
+  ggtitle("Facilitation Effects by Presentation Time") +
+  theme_bw(base_size = 10)
+sum.plot
 ```
 
 What do you see here? How close is it to what Sklar et al. report? How do you interpret these data? 
 
-> ANSWER
+> I reproduce the same graph that it is in the paper, but I do not quiet understand what they did incorrectly on the paper. I also do not have specially clear how to compare this results. I could benefit from talking through this results and final question. Let me know if you guys have time. 
 
